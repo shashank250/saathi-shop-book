@@ -500,4 +500,214 @@
       if (!pin || !/^\d{8,12}$/.test(pin)) { if (pin) toast('Enter the 8 to 12 digit backup PIN.'); return; }
       const key = await deriveKey(pin, asBytes(backup.vault.salt), backup.vault.iterations);
       const restored = await openVault(backup.vault, key);
-      if (!restored || !Array.isArray(restore
+      if (!restored || !Array.isArray(restored.entries) || !Array.isArray(restored.items)) throw new Error('invalid backup');
+      if (localStorage.getItem(storeKey(backup.edition)) && !confirm('Replace this shop book with the selected backup? This cannot be undone.')) return;
+      state = restored; cryptoKey = key; vault = backup.vault;
+      localStorage.setItem(storeKey(edition), JSON.stringify(vault)); startApp(); showView('home'); toast('Backup restored.');
+    } catch (error) { if (error.name === 'OperationError') toast('That PIN did not open this backup. Nothing was changed.'); else toast('This backup could not be opened. Nothing was changed.'); }
+  }
+  async function changePin() {
+    const next = prompt('Choose a new PIN (8 to 12 digits). Your current shop book will be re-encrypted with it.');
+    if (!next) return;
+    if (!/^\d{8,12}$/.test(next)) { toast('Choose a PIN with 8 to 12 digits.'); return; }
+    const confirmPin = prompt('Type your new PIN one more time.');
+    if (next !== confirmPin) { toast('Those PINs did not match. No changes made.'); return; }
+    if (!confirm('Change the PIN for this encrypted shop book? Make a new backup afterwards.')) return;
+    const salt = crypto.getRandomValues(new Uint8Array(16)), saltB64 = asBase64(salt);
+    cryptoKey = await deriveKey(next, salt); vault = await seal(state, cryptoKey, saltB64);
+    localStorage.setItem(storeKey(edition), JSON.stringify(vault)); toast('PIN changed. Save a new backup.');
+  }
+  function installApp() {
+    if (deferredInstall) {
+      deferredInstall.prompt(); deferredInstall.userChoice.then(choice => { if (choice.outcome === 'accepted') toast('Saathi is being installed.'); deferredInstall = null; });
+    } else {
+      openDialog('Add Saathi to your phone', 'Use your browser menu to keep Saathi on your home screen.', '<p class="dialog-copy">On Android: tap the browser menu, then “Install app” or “Add to Home screen”.<br><br>On iPhone: tap Share, then “Add to Home Screen”.</p>', async () => true, 'Got it');
+    }
+  }
+
+  function openDictation() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    openDialog('Speak a shop entry', 'For reliable phone dictation, use the microphone on your phone keyboard. Saathi receives only the text your keyboard inserts, not its audio. Voice typing privacy depends on your phone and keyboard provider. Review every word and amount before saving.',
+      `<button class="button primary full" type="button" id="keyboardDictate">🎙 Use phone keyboard to dictate</button><div class="field"><label for="dictationText">Dictate or type your entry here</label><textarea id="dictationText" rows="4" maxlength="300" placeholder="Example: sold two mango juice for Aman on credit" autocapitalize="sentences" spellcheck="true"></textarea></div><button class="button secondary full" type="button" id="startDictation">Try Saathi microphone</button><div class="field"><label for="dictationKind">What are you recording?</label><select id="dictationKind"><option value="sale">Sale</option><option value="credit">Customer credit</option><option value="payment">Customer payment</option><option value="restock">Stock received</option></select></div><p class="field-help" id="dictationStatus" aria-live="polite">Tap “Use phone keyboard to dictate”, then tap its microphone. Switch your keyboard to Hindi first if needed.</p>`, async () => {
+        const text = $('#dictationText').value.trim();
+        if (!text) { toast('Record or type an entry first.'); return false; }
+        const kind = $('#dictationKind').value, amount = Number((text.match(/\d+(?:\.\d{1,2})?/) || [])[0]) || 0;
+        const item = state.items.find(x => text.toLocaleLowerCase().includes(x.name.toLocaleLowerCase()));
+        const qty = Math.max(1, Number((text.match(/\b\d+\b/) || [])[0]) || 1);
+        const nameMatch = text.match(/(?:for|from|customer)\s+([\p{L}][\p{L} .'-]{1,38})/iu);
+        const customer = nameMatch?.[1]?.trim().replace(/\s+(?:on credit|paid|owes).*$/i, '') || '';
+        dialog.close();
+        if (kind === 'sale') openSale({ itemId: item?.id, quantity: qty, customer: /credit|udhaar|उधार/i.test(text) ? customer : '' });
+        else if (kind === 'credit') openManualCredit({ customer, amount });
+        else if (kind === 'payment') openPayment(customer, amount);
+        else if (kind === 'restock' && item) { openRestock(item.id); $('#restockQty').value = qty; }
+        else if (kind === 'restock') { showView('stock'); toast('Add the stock item first, then record its quantity.'); }
+        else toast('Check the details in the form, then confirm to save.');
+        return false;
+      }, 'Review entry');
+    $('#keyboardDictate').onclick = () => {
+      $('#dictationStatus').textContent = 'Your phone keyboard should open. Tap its microphone and dictate. If it has no microphone, enable voice typing in your phone keyboard settings.';
+      $('#dictationText').focus();
+    };
+    const start = $('#startDictation');
+    if (!SpeechRecognition) {
+      start.disabled = true;
+      start.disabled = true;
+      start.textContent = 'In-app microphone unavailable';
+      $('#dictationStatus').textContent = 'This browser does not support Saathi microphone recording. Use the microphone on your phone keyboard instead.';
+      return;
+    }
+    let localSpeechReady = false;
+    const startRecognition = () => {
+      let failed = false;
+      try {
+        recognition = new SpeechRecognition();
+        recognition.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+        if (localSpeechReady && 'processLocally' in recognition) recognition.processLocally = true;
+        const status = $('#dictationStatus');
+        recognition.onresult = event => { $('#dictationText').value = [...event.results].map(result => result[0].transcript).join(' '); };
+        recognition.onerror = event => {
+          failed = true;
+          const reasons = {
+            'not-allowed': 'The browser denied microphone access. Open site settings beside the address bar, set Microphone to Allow, reload, and try again.',
+            'service-not-allowed': 'This browser blocked its speech service. Try another browser or type the entry.',
+            'network': 'The speech service could not connect. Check internet, or type the entry.',
+            'no-speech': 'No speech was detected. Check the microphone, move closer, and speak after tapping Record.',
+            'audio-capture': 'The browser could not use the microphone. Check site permission and close other apps using it.',
+            'language-not-supported': `This browser cannot transcribe ${language === 'hi' ? 'Hindi' : 'English'} here. Change language or type the entry.`,
+            'aborted': 'Recording stopped.'
+          };
+          status.textContent = reasons[event.error] || `Speech recognition failed (${event.error}). Check microphone access or type the entry.`;
+          start.textContent = '🎙 Try again';
+          start.onclick = ['not-allowed', 'audio-capture'].includes(event.error) ? prepareMicrophone : startRecognition;
+        };
+        recognition.onend = () => {
+          if (failed) return;
+          start.textContent = $('#dictationText').value ? '🎙 Record again' : '🎙 Try again';
+          status.textContent = $('#dictationText').value ? 'Transcript ready. Edit it, choose the entry type, then review.' : 'No transcript received. Try again or type the entry.';
+          start.onclick = startRecognition;
+        };
+        start.textContent = '🎙 Listening… tap to stop';
+        status.textContent = localSpeechReady ? 'Listening on this device. Speak clearly, then check the transcript.' : 'Listening. Speak clearly, then check the transcript.';
+        recognition.start();
+        start.onclick = () => recognition?.stop();
+      } catch (error) {
+        $('#dictationStatus').textContent = `Could not start speech recognition (${error.name || 'browser error'}). Try again or type the entry.`;
+        start.textContent = '🎙 Try again';
+        start.onclick = startRecognition;
+      }
+    };
+    const prepareMicrophone = async () => {
+      try {
+        if (!window.isSecureContext) throw Object.assign(new Error('Saathi needs HTTPS or localhost to access the microphone.'), { name: 'InsecureContextError' });
+        if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error('This browser cannot request microphone access here.'), { name: 'MicrophoneUnavailableError' });
+        const status = $('#dictationStatus');
+        status.textContent = 'Requesting microphone permission. Choose Allow in your browser prompt.';
+        const microphone = await navigator.mediaDevices.getUserMedia({ audio: true });
+        microphone.getTracks().forEach(track => track.stop());
+        localSpeechReady = false;
+        if (typeof SpeechRecognition.available === 'function') {
+          try {
+            const recognitionLanguage = language === 'hi' ? 'hi-IN' : 'en-IN';
+            let availability = await SpeechRecognition.available({ langs: [recognitionLanguage], processLocally: true, quality: 'dictation' });
+            if (['downloadable', 'downloading'].includes(availability) && typeof SpeechRecognition.install === 'function') {
+              status.textContent = 'Microphone allowed. Preparing the on-device speech pack…';
+              const installed = await SpeechRecognition.install({ langs: [recognitionLanguage], quality: 'dictation' });
+              availability = installed ? 'available' : 'unavailable';
+            }
+            localSpeechReady = availability === 'available';
+          } catch { localSpeechReady = false; }
+        }
+        start.textContent = '🎙 Start recording';
+        start.onclick = startRecognition;
+        status.textContent = localSpeechReady ? 'Microphone is ready. Tap Start recording; speech will stay on this device.' : 'Microphone is ready. Tap Start recording. This browser may use an online speech service.';
+      } catch (error) {
+        const reasons = {
+          'NotAllowedError': 'Microphone access is blocked. In your browser, open the site controls beside the address, set Microphone to Allow, then reload Saathi.',
+          'PermissionDeniedError': 'Microphone access is blocked. Open this site’s browser settings, set Microphone to Allow, then reload Saathi.',
+          'NotFoundError': 'No microphone was found. Connect or enable a microphone, then try again.',
+          'NotReadableError': 'The microphone is busy or unavailable. Close other apps using it, then try again.',
+          'SecurityError': 'The browser blocked microphone access. Open Saathi using its HTTPS link or localhost.',
+          'InsecureContextError': error.message,
+          'MicrophoneUnavailableError': error.message
+        };
+        $('#dictationStatus').textContent = reasons[error.name] || `Could not access the microphone (${error.name || 'browser error'}). Check site permissions and try again.`;
+        start.textContent = '🎙 Try again';
+        start.onclick = prepareMicrophone;
+      }
+    };
+    start.onclick = prepareMicrophone;
+  }
+
+  // Pointer-responsive shop colors add a little life without moving the content.
+  window.addEventListener('pointermove', event => {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    document.documentElement.style.setProperty('--glow-x', `${Math.round(event.clientX / innerWidth * 100)}%`);
+    document.documentElement.style.setProperty('--glow-y', `${Math.round(event.clientY / innerHeight * 100)}%`);
+  }, { passive: true });
+  document.addEventListener('pointerdown', resetLockTimer, { passive: true });
+  document.addEventListener('keydown', resetLockTimer);
+  document.addEventListener('visibilitychange', () => { if (document.hidden && state) persist().then(lockApp); });
+  $$('.nav-item').forEach(button => button.onclick = () => showView(button.dataset.view));
+  $$('[data-go]').forEach(button => button.onclick = () => showView(button.dataset.go));
+  $('#saleAction').onclick = openSale;
+  $('#paymentAction').onclick = () => openPayment();
+  $('#newCreditButton').onclick = openManualCredit;
+  $('#addItemButton').onclick = () => openItemEditor();
+  $('#addFirstItem').onclick = () => openItemEditor();
+  $('#editProfile').onclick = openProfileEditor;
+  $('#profileButton').onclick = openProfileEditor;
+  $('#lockButton').onclick = () => { if (confirm('Lock Saathi now? Your latest changes are saved first.')) persist().then(lockApp); };
+  $('#themeButton').onclick = $('#themeSwitch').onclick = () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; localStorage.setItem(themeKey(edition), state.theme); setTheme(state.theme); persist(); };
+  $('#languageButton').onclick = $('#languageTopButton').onclick = () => { language = language === 'en' ? 'hi' : 'en'; state.language = language; applyLanguage(); persist(); };
+  $('#dictateButton').onclick = openDictation;
+  $('#reportMonth').onchange = renderReports;
+  $('#currencySelect').onchange = async event => {
+    const nextCurrency = event.target.value;
+    if (nextCurrency === state.currency) return;
+    if (state.entries.length && !confirm(`Change the shop currency symbol to ${nextCurrency}? Existing amounts will not be converted.`)) { event.target.value = state.currency || 'INR'; return; }
+    state.currency = nextCurrency; await persist(); renderAll(); toast(`Shop currency set to ${nextCurrency}.`);
+  };
+  $('#ledgerFilter').onchange = () => renderActivity($('#ledgerActivity'), ledgerEntries(), $('#emptyLedger'));
+  $('#csvButton').onclick = $('#settingsCsv').onclick = downloadCSV;
+  $('#backupButton').onclick = $('#settingsBackup').onclick = downloadBackup;
+  $('#restoreButton').onclick = () => $('#restoreFile').click();
+  $('#restoreFile').onchange = event => {
+    const file = event.target.files[0]; if (!file) return;
+    openDialog('Open encrypted backup', 'Enter the PIN used to create that backup. It will replace the shop book in this browser.', `${field('Backup PIN', 'unlockPinForRestore', { type: 'password', inputmode: 'numeric', maxlength: 12, placeholder: '8 or more digits' })}`, async () => {
+      const pin = $('#unlockPinForRestore').value;
+      try {
+        const backup = JSON.parse(await file.text()); validateBackupEnvelope(backup);
+        if (backup.edition !== edition) { toast(`This backup belongs to ${isSatyamEdition(backup.edition) ? "Satyam Bhaiya's shop" : 'My Shop'}. Open that separate shop link to restore it.`); return false; }
+        if (!/^\d{8,12}$/.test(pin)) { toast('Enter the 8 to 12 digit backup PIN.'); return false; }
+        const key = await deriveKey(pin, asBytes(backup.vault.salt), backup.vault.iterations);
+        const restored = await openVault(backup.vault, key);
+        if (!restored || !Array.isArray(restored.entries) || !Array.isArray(restored.items)) throw new Error('invalid');
+        if (!confirm('Replace this browser’s current shop book with this backup? This cannot be undone.')) return false;
+        state = restored; cryptoKey = key; vault = backup.vault; edition = backup.edition;
+        localStorage.setItem(storeKey(edition), JSON.stringify(vault)); dialog.close(); startApp(); showView('home'); toast('Backup restored.');
+        return true;
+      } catch (error) { toast(error.name === 'OperationError' ? 'That PIN did not open this backup.' : 'This file is not a valid Saathi backup.'); return false; }
+    }, 'Restore');
+    event.target.value = '';
+  };
+  $('#changePinButton').onclick = changePin;
+  $('#installButton').onclick = installApp;
+  $('#closeDialog').onclick = () => dialog.close();
+  dialog.addEventListener('click', e => { const bounds = dialog.getBoundingClientRect(); if (e.clientX < bounds.left || e.clientX > bounds.right || e.clientY < bounds.top || e.clientY > bounds.bottom) dialog.close(); });
+  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredInstall = event; $('#installButton').textContent = 'Install'; });
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
+  if (!window.crypto?.subtle || !window.isSecureContext) {
+    gateContent.innerHTML = gateHeader('Secure connection needed', 'Open Saathi from its secure hosted link or from localhost. Private records need your browser’s built-in encryption.');
+  } else {
+    try { renderGate(); }
+    catch (error) {
+      console.error('Saathi could not open its private setup.', error);
+      gateContent.innerHTML = gateHeader('Could not open Saathi', 'The private shop book could not be opened in this browser. Try reloading this page.');
+    }
+  }
+})();
+
