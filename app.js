@@ -13,7 +13,9 @@
   const dialogActions = $('#dialogActions');
   const storeKey = edition => `saathi.vault.v${VERSION}.${edition}`;
   const themeKey = edition => `saathi.theme.${edition}`;
-  const editionFromUrl = new URLSearchParams(location.search).get('edition') === 'satyam' ? 'satyam' : 'community';
+  const routeParams = new URLSearchParams(location.search);
+  const editionFromUrl = routeParams.get('edition') === 'satyam' ? 'satyam' : 'community';
+  const demoMode = editionFromUrl === 'satyam' && routeParams.get('demo') === '1';
   let edition = editionFromUrl;
   let vault = null;
   let cryptoKey = null;
@@ -50,6 +52,11 @@
   function toast(message) {
     const el = $('#toast'); el.textContent = message; el.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+  function blockDemoWrite() {
+    if (!demoMode) return false;
+    toast('Showcase demo only. These sample records cannot be changed.');
+    return true;
   }
   function setTheme(theme) {
     document.body.classList.toggle('dark', theme === 'dark');
@@ -111,6 +118,56 @@
   function createEmptyState(ownerName, shopName, currency = 'INR') {
     return { ownerName: edition === 'satyam' ? 'Satyam Bhaiya' : ownerName, shopName, currency, items: [], entries: [], language: 'en', theme: 'light', createdAt: new Date().toISOString() };
   }
+  function createDemoState() {
+    const items = [
+      { id: 'demo-chai', name: 'Masala chai', price: 12, cost: 8, stock: 45, reorderAt: 15, unit: 'cups', active: true, icon: '☕' },
+      { id: 'demo-samosa', name: 'Samosa', price: 15, cost: 9, stock: 22, reorderAt: 10, unit: 'pieces', active: true, icon: '◈' },
+      { id: 'demo-juice', name: 'Mango juice', price: 30, cost: 18, stock: 8, reorderAt: 10, unit: 'bottles', active: true, icon: '◉' },
+      { id: 'demo-biscuit', name: 'Biscuit packet', price: 10, cost: 6, stock: 38, reorderAt: 12, unit: 'packets', active: true, icon: '▤' },
+      { id: 'demo-cold-drink', name: 'Cold drink', price: 40, cost: 28, stock: 14, reorderAt: 8, unit: 'bottles', active: true, icon: '◍' },
+      { id: 'demo-pakora', name: 'Bread pakora', price: 20, cost: 12, stock: 6, reorderAt: 8, unit: 'pieces', active: true, icon: '✦' },
+      { id: 'demo-soda', name: 'Lemon soda', price: 20, cost: 10, stock: 19, reorderAt: 8, unit: 'glasses', active: true, icon: '◌' },
+      { id: 'demo-maggi', name: 'Veg Maggi', price: 35, cost: 20, stock: 8, reorderAt: 5, unit: 'plates', active: true, icon: '≋' }
+    ];
+    const entries = [];
+    const dateAt = (daysAgo, hour, minute = 0) => {
+      const date = new Date();
+      date.setDate(date.getDate() - daysAgo);
+      date.setHours(hour, minute, 0, 0);
+      return date.toISOString();
+    };
+    const addSale = (item, quantity, daysAgo, hour, payment = 'cash', customer = '') => {
+      const amount = quantity * item.price, cost = quantity * item.cost;
+      entries.push({ id: 'demo-entry-' + (entries.length + 1), type: 'sale', itemId: item.id, itemName: item.name, quantity, amount, cost, profit: amount - cost, customer, payment, time: dateAt(daysAgo, hour) });
+    };
+    const addBalance = (type, customer, amount, daysAgo, hour) => entries.push({ id: 'demo-entry-' + (entries.length + 1), type, customer, amount, time: dateAt(daysAgo, hour) });
+    for (let ago = Math.min(14, new Date().getDate() - 1); ago >= 1; ago--) {
+      for (let slot = 0; slot < 4; slot++) {
+        const item = items[(ago * 2 + slot * 3) % items.length];
+        const quantity = 1 + ((ago + slot) % 4);
+        addSale(item, quantity, ago, [9, 11, 14, 17][slot], 'cash');
+      }
+    }
+    addBalance('credit', 'Rahul Yadav', 450, 5, 12);
+    addBalance('payment', 'Rahul Yadav', 200, 3, 16);
+    addBalance('credit', 'Neha Singh', 300, 4, 13);
+    addBalance('credit', 'Aman Verma', 500, 7, 11);
+    addBalance('payment', 'Aman Verma', 250, 2, 15);
+    addBalance('credit', 'Priya Sharma', 600, 10, 12);
+    addBalance('payment', 'Priya Sharma', 100, 4, 17);
+    addBalance('credit', 'Vikas Kumar', 350, 8, 14);
+    addSale(items[0], 15, 0, 9, 'cash');
+    addSale(items[1], 10, 0, 10, 'credit', 'Rahul Yadav');
+    addSale(items[2], 5, 0, 11, 'cash');
+    addSale(items[3], 8, 0, 12, 'cash');
+    addSale(items[4], 6, 0, 13, 'cash');
+    addSale(items[5], 5, 0, 14, 'cash');
+    addSale(items[6], 8, 0, 15, 'cash');
+    addSale(items[7], 5, 0, 16, 'credit', 'Neha Singh');
+    addSale(items[0], 5, 0, 17, 'cash');
+    entries.sort((a, b) => a.time.localeCompare(b.time));
+    return { ownerName: 'Satyam Bhaiya', shopName: "Satyam Bhaiya's shop", currency: 'INR', items, entries, language: 'en', theme: 'light', createdAt: new Date().toISOString() };
+  }
   function gateHeader(title, copy) {
     return `<h1>${escapeHtml(title)}</h1><p class="gate-copy">${escapeHtml(copy)}</p>`;
   }
@@ -166,7 +223,7 @@
     } catch (error) { cryptoKey = null; state = null; renderGate('That PIN did not unlock the shop book. Try again.'); }
   }
   async function persist() {
-    if (!state || !cryptoKey || !vault) return;
+    if (demoMode || !state || !cryptoKey || !vault) return;
     saveQueue = saveQueue.then(async () => {
       const sealed = await seal(state, cryptoKey, vault.salt);
       localStorage.setItem(storeKey(edition), JSON.stringify(sealed));
@@ -176,7 +233,15 @@
   }
   function startApp() {
     gate.classList.add('hidden'); app.classList.remove('hidden');
-    document.title = edition === 'satyam' ? 'Saathi for Satyam Bhaiya' : 'Saathi — My Shop';
+    document.title = demoMode ? 'Saathi Showcase Demo — Satyam Bhaiya' : edition === 'satyam' ? 'Saathi for Satyam Bhaiya' : 'Saathi — My Shop';
+    $('link[rel="manifest"]').href = demoMode ? './manifest-satyam-demo.json' : edition === 'satyam' ? './manifest-satyam.json' : './manifest.json';
+    document.body.classList.toggle('demo-mode', demoMode);
+    $('#demoBanner').classList.toggle('hidden', !demoMode);
+    $('#demoRecordsPanel').classList.toggle('hidden', !demoMode);
+    $('#recordsPanel').classList.toggle('hidden', demoMode);
+    $('#todayStatus').textContent = demoMode ? 'Sample figures · demo only' : 'Saved in this browser';
+    ['#lockButton', '#dictateButton', '#profileButton', '#editProfile', '#saleAction', '#paymentAction', '#newCreditButton', '#addItemButton', '#addFirstItem', '#privacyStrip'].forEach(selector => $(selector).classList.toggle('hidden', demoMode));
+    $('#currencySelect').disabled = demoMode;
     language = state.language || 'en';
     setTheme(state.theme || 'light');
     applyLanguage();
@@ -192,12 +257,13 @@
     renderAll(); resetLockTimer();
   }
   function lockApp() {
+    if (demoMode) return;
     clearTimeout(lockTimer); cryptoKey = null; state = null; vault = null;
     renderGate();
   }
   function resetLockTimer() {
     clearTimeout(lockTimer);
-    if (!state) return;
+    if (!state || demoMode) return;
     lockTimer = setTimeout(lockApp, 5 * 60 * 1000);
   }
   function showView(name) {
@@ -315,6 +381,7 @@
     return n;
   }
   function openSale(prefill = {}) {
+    if (blockDemoWrite()) return;
     const items = state.items.filter(x => x.active !== false);
     if (!items.length) { showView('stock'); openItemEditor(); toast('Add an item before recording a sale.'); return; }
     openDialog('Record a sale', 'Choose what was sold. Saathi will update stock and estimate your profit.',
@@ -340,6 +407,7 @@
     $('#salePayment').dispatchEvent(new Event('change'));
   }
   function openManualCredit(prefill = {}) {
+    if (blockDemoWrite()) return;
     openDialog('Add customer credit', 'Use this for an older balance you are entering for the first time.',
       `${field('Customer name', 'creditName', { maxlength: 40, placeholder: 'e.g. Aman' })}${field('Amount still to collect', 'creditAmount', { type: 'number', min: 0.01, step: 0.01, inputmode: 'decimal', placeholder: '100' })}`,
       async () => {
@@ -353,6 +421,7 @@
     if (prefill.amount) $('#creditAmount').value = prefill.amount;
   }
   function openPayment(customerName = '', amount = '') {
+    if (blockDemoWrite()) return;
     const balances = customerBalances();
     if (!balances.length) { toast('There are no open customer balances yet.'); return; }
     const options = balances.map(c => `<option value="${escapeHtml(c.name)}" ${customerName === c.name ? 'selected' : ''}>${escapeHtml(c.name)} · ${money(c.due)} due</option>`).join('');
@@ -371,6 +440,7 @@
     $('#paymentCustomer').onchange = updateDue; updateDue();
   }
   function openItemEditor(itemId = '') {
+    if (blockDemoWrite()) return;
     const old = state.items.find(item => item.id === itemId);
     openDialog(old ? 'Edit shop item' : 'Add an item', 'Use the price you pay and the price you charge. Your past sales will keep their original amounts.',
       `${field('Item name', 'itemName', { maxlength: 50, placeholder: 'e.g. Mango juice' })}${field('Selling price', 'itemPrice', { type: 'number', min: 0, step: 0.01, inputmode: 'decimal', placeholder: '30' })}${field('What you pay for one', 'itemCost', { type: 'number', min: 0, step: 0.01, inputmode: 'decimal', placeholder: '22' })}${field('Quantity in stock', 'itemStock', { type: 'number', min: 0, step: 1, inputmode: 'numeric', placeholder: '12' })}${field('Remind me when stock reaches', 'itemReorder', { type: 'number', min: 0, step: 1, inputmode: 'numeric', placeholder: '3' })}<p class="field-help">No private shop data leaves your phone.</p>`, async () => {
@@ -388,6 +458,7 @@
     if (old) { $('#itemName').value = old.name; $('#itemPrice').value = old.price; $('#itemCost').value = old.cost; $('#itemStock').value = old.stock; $('#itemReorder').value = old.reorderAt; }
   }
   function openRestock(itemId) {
+    if (blockDemoWrite()) return;
     const item = state.items.find(x => x.id === itemId); if (!item) return;
     openDialog(`Add ${item.name} to stock`, 'Enter the number of items that arrived at the shop.', `${field('Quantity received', 'restockQty', { type: 'number', min: 1, step: 1, inputmode: 'numeric', placeholder: '10' })}<p class="field-help">Current stock: ${item.stock} ${escapeHtml(item.unit)}</p>`, async () => {
       const qty = requireNumber('#restockQty', 'Quantity', 1); if (qty === null) return false;
@@ -397,6 +468,7 @@
     }, 'Update stock');
   }
   function openProfileEditor() {
+    if (blockDemoWrite()) return;
     const ownerField = edition === 'satyam'
       ? `<div class="field"><label>Satyam Bhaiya</label><input value="Satyam Bhaiya" disabled></div>`
       : field('Your name', 'profileOwner', { maxlength: 40, placeholder: 'Your name' });
@@ -422,6 +494,7 @@
     downloadBlob(`saathi-${month}-shop-records.csv`, 'text/csv;charset=utf-8', csv); toast('Monthly CSV downloaded.');
   }
   async function downloadBackup() {
+    if (blockDemoWrite()) return;
     await saveQueue;
     const data = localStorage.getItem(storeKey(edition));
     if (!data) { toast('No saved shop book found.'); return; }
@@ -430,6 +503,7 @@
     toast('Encrypted backup downloaded.');
   }
   async function restoreBackupFile(file, newSetup = false) {
+    if (blockDemoWrite()) return;
     if (!file) return;
     try {
       const backup = JSON.parse(await file.text());
@@ -447,6 +521,7 @@
     } catch (error) { if (error.name === 'OperationError') toast('That PIN did not open this backup. Nothing was changed.'); else toast('This backup could not be opened. Nothing was changed.'); }
   }
   async function changePin() {
+    if (blockDemoWrite()) return;
     const next = prompt('Choose a new PIN (8 to 12 digits). Your current shop book will be re-encrypted with it.');
     if (!next) return;
     if (!/^\d{8,12}$/.test(next)) { toast('Choose a PIN with 8 to 12 digits.'); return; }
@@ -590,7 +665,7 @@
   }, { passive: true });
   document.addEventListener('pointerdown', resetLockTimer, { passive: true });
   document.addEventListener('keydown', resetLockTimer);
-  document.addEventListener('visibilitychange', () => { if (document.hidden && state) persist().then(lockApp); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && state && !demoMode) persist().then(lockApp); });
   $$('.nav-item').forEach(button => button.onclick = () => showView(button.dataset.view));
   $$('[data-go]').forEach(button => button.onclick = () => showView(button.dataset.go));
   $('#saleAction').onclick = openSale;
@@ -601,7 +676,7 @@
   $('#editProfile').onclick = openProfileEditor;
   $('#profileButton').onclick = openProfileEditor;
   $('#lockButton').onclick = () => { if (confirm('Lock Saathi now? Your latest changes are saved first.')) persist().then(lockApp); };
-  $('#themeButton').onclick = $('#themeSwitch').onclick = () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; localStorage.setItem(themeKey(edition), state.theme); setTheme(state.theme); persist(); };
+  $('#themeButton').onclick = $('#themeSwitch').onclick = () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; if (!demoMode) localStorage.setItem(themeKey(edition), state.theme); setTheme(state.theme); persist(); };
   $('#languageButton').onclick = $('#languageTopButton').onclick = () => { language = language === 'en' ? 'hi' : 'en'; state.language = language; applyLanguage(); persist(); };
   $('#dictateButton').onclick = openDictation;
   $('#reportMonth').onchange = renderReports;
@@ -640,7 +715,11 @@
   dialog.addEventListener('click', e => { const bounds = dialog.getBoundingClientRect(); if (e.clientX < bounds.left || e.clientX > bounds.right || e.clientY < bounds.top || e.clientY > bounds.bottom) dialog.close(); });
   window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredInstall = event; $('#installButton').textContent = 'Install'; });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
-  if (!window.crypto?.subtle || !window.isSecureContext) {
+  if (demoMode) {
+    state = createDemoState();
+    startApp();
+    showView('home');
+  } else if (!window.crypto?.subtle || !window.isSecureContext) {
     gateContent.innerHTML = gateHeader('Secure connection needed', 'Open Saathi from its secure hosted link or from localhost. Private records need your browser’s built-in encryption.');
   } else {
     try { renderGate(); }

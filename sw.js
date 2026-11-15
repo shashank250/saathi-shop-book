@@ -1,6 +1,6 @@
-const CACHE = 'saathi-shell-v3';
+const CACHE = 'saathi-shell-v4';
 const ROOT = self.registration.scope;
-const SHELL = [ROOT, ROOT + 'index.html', ROOT + 'styles.css', ROOT + 'app.js', ROOT + 'manifest.json', ROOT + 'manifest-satyam.json', ROOT + 'icon.svg', ROOT + 'satyam/index.html', ROOT + 'shop/index.html'];
+const SHELL = [ROOT, ROOT + 'index.html', ROOT + 'styles.css', ROOT + 'app.js', ROOT + 'manifest.json', ROOT + 'manifest-satyam.json', ROOT + 'manifest-satyam-demo.json', ROOT + 'icon.svg', ROOT + 'satyam/index.html', ROOT + 'satyam/demo/index.html', ROOT + 'shop/index.html'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -25,3 +25,4 @@ self.addEventListener('fetch', event => {
     return response;
   }).catch(() => caches.match(request)));
 });
+

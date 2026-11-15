@@ -37,6 +37,6 @@ The site has two clean edition links:
 
 - `https://<your-github-name>.github.io/<repository-name>/satyam/` — Satyam Bhaiya's personal shop setup.
 - `https://<your-github-name>.github.io/<repository-name>/shop/` — a fresh "My Shop" setup for any shop owner.
+- `https://<your-github-name>.github.io/<repository-name>/satyam/demo/` — a public, read-only panel showcase with fictional sample figures, separate from Satyam Bhaiya’s personal shop book.
 
-Both links open the same app with separate encrypted shop books on the device.
-
+The first two links open the app with separate encrypted shop books on the device. The demo link opens sample figures only; its data is generated locally for display, is not saved or uploaded, and cannot change personal shop records.

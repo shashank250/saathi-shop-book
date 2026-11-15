@@ -28,9 +28,10 @@ jobs:
       - name: Prepare public site files
         run: |
           mkdir _site
-          cp index.html styles.css app.js manifest.json manifest-satyam.json sw.js icon.svg _site/
-          mkdir _site/satyam _site/shop
+          cp index.html styles.css app.js manifest.json manifest-satyam.json manifest-satyam-demo.json sw.js icon.svg _site/
+          mkdir -p _site/satyam/demo _site/shop
           cp satyam/index.html _site/satyam/index.html
+          cp satyam/demo/index.html _site/satyam/demo/index.html
           cp shop/index.html _site/shop/index.html
           touch _site/.nojekyll
       - name: Upload site
