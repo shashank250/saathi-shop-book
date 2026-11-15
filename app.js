@@ -15,8 +15,9 @@
   const themeKey = edition => `saathi.theme.${edition}`;
   const routeParams = new URLSearchParams(location.search);
   const editionFromUrl = routeParams.get('edition') === 'satyam' ? 'satyam' : 'community';
-  const demoMode = editionFromUrl === 'satyam' && routeParams.get('demo') === '1';
-  let edition = editionFromUrl;
+  const seededShop = editionFromUrl === 'satyam' && routeParams.get('starter') === '1';
+  let edition = seededShop ? 'satyam-starter' : editionFromUrl;
+  const isSatyamEdition = value => value === 'satyam' || value === 'satyam-starter';
   let vault = null;
   let cryptoKey = null;
   let state = null;
@@ -52,11 +53,6 @@
   function toast(message) {
     const el = $('#toast'); el.textContent = message; el.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
-  }
-  function blockDemoWrite() {
-    if (!demoMode) return false;
-    toast('Showcase demo only. These sample records cannot be changed.');
-    return true;
   }
   function setTheme(theme) {
     document.body.classList.toggle('dark', theme === 'dark');
@@ -109,16 +105,16 @@
     return JSON.parse(new TextDecoder().decode(plain));
   }
   function validateBackupEnvelope(backup) {
-    if (backup?.format !== 'saathi-encrypted-backup' || !['satyam', 'community'].includes(backup.edition) || backup.vault?.v !== VERSION || backup.vault?.kdf !== 'PBKDF2-SHA256') throw new Error('invalid backup');
+    if (backup?.format !== 'saathi-encrypted-backup' || !['satyam', 'satyam-starter', 'community'].includes(backup.edition) || backup.vault?.v !== VERSION || backup.vault?.kdf !== 'PBKDF2-SHA256') throw new Error('invalid backup');
     const rounds = Number(backup.vault.iterations);
     if (!Number.isInteger(rounds) || rounds < 100000 || rounds > 1000000) throw new Error('invalid backup');
     const salt = asBytes(backup.vault.salt), iv = asBytes(backup.vault.iv), data = asBytes(backup.vault.data);
     if (salt.length !== 16 || iv.length !== 12 || data.length < 16 || data.length > 5 * 1024 * 1024) throw new Error('invalid backup');
   }
   function createEmptyState(ownerName, shopName, currency = 'INR') {
-    return { ownerName: edition === 'satyam' ? 'Satyam Bhaiya' : ownerName, shopName, currency, items: [], entries: [], language: 'en', theme: 'light', createdAt: new Date().toISOString() };
+    return { ownerName: isSatyamEdition(edition) ? 'Satyam Bhaiya' : ownerName, shopName, currency, items: [], entries: [], language: 'en', theme: 'light', createdAt: new Date().toISOString() };
   }
-  function createDemoState() {
+  function createSatyamStarterState() {
     const items = [
       { id: 'demo-chai', name: 'Masala chai', price: 12, cost: 8, stock: 45, reorderAt: 15, unit: 'cups', active: true, icon: '☕' },
       { id: 'demo-samosa', name: 'Samosa', price: 15, cost: 9, stock: 22, reorderAt: 10, unit: 'pieces', active: true, icon: '◈' },
@@ -173,9 +169,9 @@
   }
   function renderGate(message = '') {
     gate.classList.remove('hidden'); app.classList.add('hidden');
-    const isSatyam = edition === 'satyam';
+    const isSatyam = isSatyamEdition(edition);
     document.title = isSatyam ? 'Saathi for Satyam Bhaiya' : 'Saathi — My Shop';
-    $('link[rel="manifest"]').href = isSatyam ? './manifest-satyam.json' : './manifest.json';
+    $('link[rel="manifest"]').href = edition === 'satyam-starter' ? './manifest-satyam-book.json' : isSatyam ? './manifest-satyam.json' : './manifest.json';
     setTheme(localStorage.getItem(themeKey(edition)) || 'light');
     const saved = localStorage.getItem(storeKey(edition));
     if (saved) {
@@ -202,7 +198,8 @@
     try {
       const salt = crypto.getRandomValues(new Uint8Array(16));
       const saltB64 = asBase64(salt); cryptoKey = await deriveKey(pin, salt);
-      state = createEmptyState(owner, shop, currency);
+      state = edition === 'satyam-starter' ? createSatyamStarterState() : createEmptyState(owner, shop, currency);
+      if (edition === 'satyam-starter') { state.shopName = shop; state.currency = currency; }
       vault = await seal(state, cryptoKey, saltB64);
       localStorage.setItem(storeKey(edition), JSON.stringify(vault));
       startApp();
@@ -218,12 +215,12 @@
       vault = saved; cryptoKey = await deriveKey(pin, asBytes(vault.salt), vault.iterations || ITERATIONS);
       state = await openVault(vault, cryptoKey);
       if (!state || !Array.isArray(state.items) || !Array.isArray(state.entries)) throw new Error('bad vault');
-      if (edition === 'satyam' && state.ownerName !== 'Satyam Bhaiya') { state.ownerName = 'Satyam Bhaiya'; await persist(); }
+      if (isSatyamEdition(edition) && state.ownerName !== 'Satyam Bhaiya') { state.ownerName = 'Satyam Bhaiya'; await persist(); }
       startApp(); showView('home');
     } catch (error) { cryptoKey = null; state = null; renderGate('That PIN did not unlock the shop book. Try again.'); }
   }
   async function persist() {
-    if (demoMode || !state || !cryptoKey || !vault) return;
+    if (!state || !cryptoKey || !vault) return;
     saveQueue = saveQueue.then(async () => {
       const sealed = await seal(state, cryptoKey, vault.salt);
       localStorage.setItem(storeKey(edition), JSON.stringify(sealed));
@@ -233,22 +230,20 @@
   }
   function startApp() {
     gate.classList.add('hidden'); app.classList.remove('hidden');
-    document.title = demoMode ? 'Saathi Showcase Demo — Satyam Bhaiya' : edition === 'satyam' ? 'Saathi for Satyam Bhaiya' : 'Saathi — My Shop';
-    $('link[rel="manifest"]').href = demoMode ? './manifest-satyam-demo.json' : edition === 'satyam' ? './manifest-satyam.json' : './manifest.json';
-    document.body.classList.toggle('demo-mode', demoMode);
-    $('#demoBanner').classList.toggle('hidden', !demoMode);
-    $('#demoRecordsPanel').classList.toggle('hidden', !demoMode);
-    $('#recordsPanel').classList.toggle('hidden', demoMode);
-    $('#todayStatus').textContent = demoMode ? 'Sample figures · demo only' : 'Saved in this browser';
-    ['#lockButton', '#dictateButton', '#profileButton', '#editProfile', '#saleAction', '#paymentAction', '#newCreditButton', '#addItemButton', '#addFirstItem', '#privacyStrip'].forEach(selector => $(selector).classList.toggle('hidden', demoMode));
-    $('#currencySelect').disabled = demoMode;
+    document.title = isSatyamEdition(edition) ? 'Saathi for Satyam Bhaiya' : 'Saathi — My Shop';
+    $('link[rel="manifest"]').href = edition === 'satyam-starter' ? './manifest-satyam-book.json' : isSatyamEdition(edition) ? './manifest-satyam.json' : './manifest.json';
+    $('#recordsPanel').classList.remove('hidden');
+    $('#sampleNote').classList.toggle('hidden', edition !== 'satyam-starter');
+    $('#todayStatus').textContent = tr('saved');
+    ['#lockButton', '#dictateButton', '#profileButton', '#editProfile', '#saleAction', '#paymentAction', '#newCreditButton', '#addItemButton', '#addFirstItem', '#privacyStrip'].forEach(selector => $(selector).classList.remove('hidden'));
+    $('#currencySelect').disabled = false;
     language = state.language || 'en';
     setTheme(state.theme || 'light');
     applyLanguage();
     $('#shopLabel').textContent = state.shopName;
     $('#greeting').textContent = `Namaste, ${state.ownerName}`;
     $('#profileTitle').textContent = state.shopName;
-    $('#editionLabel').textContent = edition === 'satyam' ? "Personal edition for Satyam Bhaiya's shop" : 'Community edition for small shops and stalls';
+    $('#editionLabel').textContent = isSatyamEdition(edition) ? "Personal edition for Satyam Bhaiya's shop" : 'Community edition for small shops and stalls';
     $('#currencySelect').value = state.currency || 'INR';
     $('#profileButton').textContent = state.ownerName.split(/\s+/).map(x => x[0]).slice(0, 2).join('').toUpperCase();
     $('#reportMonth').value = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -257,13 +252,12 @@
     renderAll(); resetLockTimer();
   }
   function lockApp() {
-    if (demoMode) return;
     clearTimeout(lockTimer); cryptoKey = null; state = null; vault = null;
     renderGate();
   }
   function resetLockTimer() {
     clearTimeout(lockTimer);
-    if (!state || demoMode) return;
+    if (!state) return;
     lockTimer = setTimeout(lockApp, 5 * 60 * 1000);
   }
   function showView(name) {
@@ -381,7 +375,6 @@
     return n;
   }
   function openSale(prefill = {}) {
-    if (blockDemoWrite()) return;
     const items = state.items.filter(x => x.active !== false);
     if (!items.length) { showView('stock'); openItemEditor(); toast('Add an item before recording a sale.'); return; }
     openDialog('Record a sale', 'Choose what was sold. Saathi will update stock and estimate your profit.',
@@ -407,7 +400,6 @@
     $('#salePayment').dispatchEvent(new Event('change'));
   }
   function openManualCredit(prefill = {}) {
-    if (blockDemoWrite()) return;
     openDialog('Add customer credit', 'Use this for an older balance you are entering for the first time.',
       `${field('Customer name', 'creditName', { maxlength: 40, placeholder: 'e.g. Aman' })}${field('Amount still to collect', 'creditAmount', { type: 'number', min: 0.01, step: 0.01, inputmode: 'decimal', placeholder: '100' })}`,
       async () => {
@@ -421,7 +413,6 @@
     if (prefill.amount) $('#creditAmount').value = prefill.amount;
   }
   function openPayment(customerName = '', amount = '') {
-    if (blockDemoWrite()) return;
     const balances = customerBalances();
     if (!balances.length) { toast('There are no open customer balances yet.'); return; }
     const options = balances.map(c => `<option value="${escapeHtml(c.name)}" ${customerName === c.name ? 'selected' : ''}>${escapeHtml(c.name)} · ${money(c.due)} due</option>`).join('');
@@ -440,7 +431,6 @@
     $('#paymentCustomer').onchange = updateDue; updateDue();
   }
   function openItemEditor(itemId = '') {
-    if (blockDemoWrite()) return;
     const old = state.items.find(item => item.id === itemId);
     openDialog(old ? 'Edit shop item' : 'Add an item', 'Use the price you pay and the price you charge. Your past sales will keep their original amounts.',
       `${field('Item name', 'itemName', { maxlength: 50, placeholder: 'e.g. Mango juice' })}${field('Selling price', 'itemPrice', { type: 'number', min: 0, step: 0.01, inputmode: 'decimal', placeholder: '30' })}${field('What you pay for one', 'itemCost', { type: 'number', min: 0, step: 0.01, inputmode: 'decimal', placeholder: '22' })}${field('Quantity in stock', 'itemStock', { type: 'number', min: 0, step: 1, inputmode: 'numeric', placeholder: '12' })}${field('Remind me when stock reaches', 'itemReorder', { type: 'number', min: 0, step: 1, inputmode: 'numeric', placeholder: '3' })}<p class="field-help">No private shop data leaves your phone.</p>`, async () => {
@@ -458,7 +448,6 @@
     if (old) { $('#itemName').value = old.name; $('#itemPrice').value = old.price; $('#itemCost').value = old.cost; $('#itemStock').value = old.stock; $('#itemReorder').value = old.reorderAt; }
   }
   function openRestock(itemId) {
-    if (blockDemoWrite()) return;
     const item = state.items.find(x => x.id === itemId); if (!item) return;
     openDialog(`Add ${item.name} to stock`, 'Enter the number of items that arrived at the shop.', `${field('Quantity received', 'restockQty', { type: 'number', min: 1, step: 1, inputmode: 'numeric', placeholder: '10' })}<p class="field-help">Current stock: ${item.stock} ${escapeHtml(item.unit)}</p>`, async () => {
       const qty = requireNumber('#restockQty', 'Quantity', 1); if (qty === null) return false;
@@ -468,16 +457,15 @@
     }, 'Update stock');
   }
   function openProfileEditor() {
-    if (blockDemoWrite()) return;
-    const ownerField = edition === 'satyam'
+    const ownerField = isSatyamEdition(edition)
       ? `<div class="field"><label>Satyam Bhaiya</label><input value="Satyam Bhaiya" disabled></div>`
       : field('Your name', 'profileOwner', { maxlength: 40, placeholder: 'Your name' });
     openDialog('Shop profile', 'Keep the shop name clear so your shop book feels like yours.', `${ownerField}${field('Shop name', 'profileShop', { maxlength: 50, placeholder: 'Shop name' })}`, async () => {
-      const owner = edition === 'satyam' ? 'Satyam Bhaiya' : $('#profileOwner').value.trim(), shop = $('#profileShop').value.trim();
+      const owner = isSatyamEdition(edition) ? 'Satyam Bhaiya' : $('#profileOwner').value.trim(), shop = $('#profileShop').value.trim();
       if (owner.length < 2 || shop.length < 2) { toast('Enter both names to continue.'); return false; }
       state.ownerName = owner; state.shopName = shop; await persist(); startApp(); toast('Shop profile updated.'); return true;
     });
-    if (edition !== 'satyam') $('#profileOwner').value = state.ownerName;
+    if (!isSatyamEdition(edition)) $('#profileOwner').value = state.ownerName;
     $('#profileShop').value = state.shopName;
   }
   function downloadBlob(name, type, content) {
@@ -494,7 +482,6 @@
     downloadBlob(`saathi-${month}-shop-records.csv`, 'text/csv;charset=utf-8', csv); toast('Monthly CSV downloaded.');
   }
   async function downloadBackup() {
-    if (blockDemoWrite()) return;
     await saveQueue;
     const data = localStorage.getItem(storeKey(edition));
     if (!data) { toast('No saved shop book found.'); return; }
@@ -503,229 +490,14 @@
     toast('Encrypted backup downloaded.');
   }
   async function restoreBackupFile(file, newSetup = false) {
-    if (blockDemoWrite()) return;
     if (!file) return;
     try {
       const backup = JSON.parse(await file.text());
       validateBackupEnvelope(backup);
-      if (backup.edition !== edition) { toast(`This backup belongs to ${backup.edition === 'satyam' ? "Satyam Bhaiya's shop" : 'My Shop'}. Open that separate shop link to restore it.`); return; }
+      if (backup.edition !== edition) { toast(`This backup belongs to ${isSatyamEdition(backup.edition) ? "Satyam Bhaiya's shop" : 'My Shop'}. Open that separate shop link to restore it.`); return; }
       if (!newSetup) { toast('Use Restore backup from More to replace this shop book.'); return; }
       const pin = prompt('Enter the 8 to 12 digit PIN used when you made this backup.');
       if (!pin || !/^\d{8,12}$/.test(pin)) { if (pin) toast('Enter the 8 to 12 digit backup PIN.'); return; }
       const key = await deriveKey(pin, asBytes(backup.vault.salt), backup.vault.iterations);
       const restored = await openVault(backup.vault, key);
-      if (!restored || !Array.isArray(restored.entries) || !Array.isArray(restored.items)) throw new Error('invalid backup');
-      if (localStorage.getItem(storeKey(backup.edition)) && !confirm('Replace this shop book with the selected backup? This cannot be undone.')) return;
-      state = restored; cryptoKey = key; vault = backup.vault;
-      localStorage.setItem(storeKey(edition), JSON.stringify(vault)); startApp(); showView('home'); toast('Backup restored.');
-    } catch (error) { if (error.name === 'OperationError') toast('That PIN did not open this backup. Nothing was changed.'); else toast('This backup could not be opened. Nothing was changed.'); }
-  }
-  async function changePin() {
-    if (blockDemoWrite()) return;
-    const next = prompt('Choose a new PIN (8 to 12 digits). Your current shop book will be re-encrypted with it.');
-    if (!next) return;
-    if (!/^\d{8,12}$/.test(next)) { toast('Choose a PIN with 8 to 12 digits.'); return; }
-    const confirmPin = prompt('Type your new PIN one more time.');
-    if (next !== confirmPin) { toast('Those PINs did not match. No changes made.'); return; }
-    if (!confirm('Change the PIN for this encrypted shop book? Make a new backup afterwards.')) return;
-    const salt = crypto.getRandomValues(new Uint8Array(16)), saltB64 = asBase64(salt);
-    cryptoKey = await deriveKey(next, salt); vault = await seal(state, cryptoKey, saltB64);
-    localStorage.setItem(storeKey(edition), JSON.stringify(vault)); toast('PIN changed. Save a new backup.');
-  }
-  function installApp() {
-    if (deferredInstall) {
-      deferredInstall.prompt(); deferredInstall.userChoice.then(choice => { if (choice.outcome === 'accepted') toast('Saathi is being installed.'); deferredInstall = null; });
-    } else {
-      openDialog('Add Saathi to your phone', 'Use your browser menu to keep Saathi on your home screen.', '<p class="dialog-copy">On Android: tap the browser menu, then “Install app” or “Add to Home screen”.<br><br>On iPhone: tap Share, then “Add to Home Screen”.</p>', async () => true, 'Got it');
-    }
-  }
-
-  function openDictation() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    let recognition = null;
-    openDialog('Speak a shop entry', 'For reliable phone dictation, use the microphone on your phone keyboard. Saathi receives only the text your keyboard inserts, not its audio. Voice typing privacy depends on your phone and keyboard provider. Review every word and amount before saving.',
-      `<button class="button primary full" type="button" id="keyboardDictate">🎙 Use phone keyboard to dictate</button><div class="field"><label for="dictationText">Dictate or type your entry here</label><textarea id="dictationText" rows="4" maxlength="300" placeholder="Example: sold two mango juice for Aman on credit" autocapitalize="sentences" spellcheck="true"></textarea></div><button class="button secondary full" type="button" id="startDictation">Try Saathi microphone</button><div class="field"><label for="dictationKind">What are you recording?</label><select id="dictationKind"><option value="sale">Sale</option><option value="credit">Customer credit</option><option value="payment">Customer payment</option><option value="restock">Stock received</option></select></div><p class="field-help" id="dictationStatus" aria-live="polite">Tap “Use phone keyboard to dictate”, then tap its microphone. Switch your keyboard to Hindi first if needed.</p>`, async () => {
-        const text = $('#dictationText').value.trim();
-        if (!text) { toast('Record or type an entry first.'); return false; }
-        const kind = $('#dictationKind').value, amount = Number((text.match(/\d+(?:\.\d{1,2})?/) || [])[0]) || 0;
-        const item = state.items.find(x => text.toLocaleLowerCase().includes(x.name.toLocaleLowerCase()));
-        const qty = Math.max(1, Number((text.match(/\b\d+\b/) || [])[0]) || 1);
-        const nameMatch = text.match(/(?:for|from|customer)\s+([\p{L}][\p{L} .'-]{1,38})/iu);
-        const customer = nameMatch?.[1]?.trim().replace(/\s+(?:on credit|paid|owes).*$/i, '') || '';
-        dialog.close();
-        if (kind === 'sale') openSale({ itemId: item?.id, quantity: qty, customer: /credit|udhaar|उधार/i.test(text) ? customer : '' });
-        else if (kind === 'credit') openManualCredit({ customer, amount });
-        else if (kind === 'payment') openPayment(customer, amount);
-        else if (kind === 'restock' && item) { openRestock(item.id); $('#restockQty').value = qty; }
-        else if (kind === 'restock') { showView('stock'); toast('Add the stock item first, then record its quantity.'); }
-        else toast('Check the details in the form, then confirm to save.');
-        return false;
-      }, 'Review entry');
-    $('#keyboardDictate').onclick = () => {
-      $('#dictationStatus').textContent = 'Your phone keyboard should open. Tap its microphone and dictate. If it has no microphone, enable voice typing in your phone keyboard settings.';
-      $('#dictationText').focus();
-    };
-    const start = $('#startDictation');
-    if (!SpeechRecognition) {
-      start.disabled = true;
-      start.disabled = true;
-      start.textContent = 'In-app microphone unavailable';
-      $('#dictationStatus').textContent = 'This browser does not support Saathi microphone recording. Use the microphone on your phone keyboard instead.';
-      return;
-    }
-    let localSpeechReady = false;
-    const startRecognition = () => {
-      let failed = false;
-      try {
-        recognition = new SpeechRecognition();
-        recognition.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
-        if (localSpeechReady && 'processLocally' in recognition) recognition.processLocally = true;
-        const status = $('#dictationStatus');
-        recognition.onresult = event => { $('#dictationText').value = [...event.results].map(result => result[0].transcript).join(' '); };
-        recognition.onerror = event => {
-          failed = true;
-          const reasons = {
-            'not-allowed': 'The browser denied microphone access. Open site settings beside the address bar, set Microphone to Allow, reload, and try again.',
-            'service-not-allowed': 'This browser blocked its speech service. Try another browser or type the entry.',
-            'network': 'The speech service could not connect. Check internet, or type the entry.',
-            'no-speech': 'No speech was detected. Check the microphone, move closer, and speak after tapping Record.',
-            'audio-capture': 'The browser could not use the microphone. Check site permission and close other apps using it.',
-            'language-not-supported': `This browser cannot transcribe ${language === 'hi' ? 'Hindi' : 'English'} here. Change language or type the entry.`,
-            'aborted': 'Recording stopped.'
-          };
-          status.textContent = reasons[event.error] || `Speech recognition failed (${event.error}). Check microphone access or type the entry.`;
-          start.textContent = '🎙 Try again';
-          start.onclick = ['not-allowed', 'audio-capture'].includes(event.error) ? prepareMicrophone : startRecognition;
-        };
-        recognition.onend = () => {
-          if (failed) return;
-          start.textContent = $('#dictationText').value ? '🎙 Record again' : '🎙 Try again';
-          status.textContent = $('#dictationText').value ? 'Transcript ready. Edit it, choose the entry type, then review.' : 'No transcript received. Try again or type the entry.';
-          start.onclick = startRecognition;
-        };
-        start.textContent = '🎙 Listening… tap to stop';
-        status.textContent = localSpeechReady ? 'Listening on this device. Speak clearly, then check the transcript.' : 'Listening. Speak clearly, then check the transcript.';
-        recognition.start();
-        start.onclick = () => recognition?.stop();
-      } catch (error) {
-        $('#dictationStatus').textContent = `Could not start speech recognition (${error.name || 'browser error'}). Try again or type the entry.`;
-        start.textContent = '🎙 Try again';
-        start.onclick = startRecognition;
-      }
-    };
-    const prepareMicrophone = async () => {
-      try {
-        if (!window.isSecureContext) throw Object.assign(new Error('Saathi needs HTTPS or localhost to access the microphone.'), { name: 'InsecureContextError' });
-        if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error('This browser cannot request microphone access here.'), { name: 'MicrophoneUnavailableError' });
-        const status = $('#dictationStatus');
-        status.textContent = 'Requesting microphone permission. Choose Allow in your browser prompt.';
-        const microphone = await navigator.mediaDevices.getUserMedia({ audio: true });
-        microphone.getTracks().forEach(track => track.stop());
-        localSpeechReady = false;
-        if (typeof SpeechRecognition.available === 'function') {
-          try {
-            const recognitionLanguage = language === 'hi' ? 'hi-IN' : 'en-IN';
-            let availability = await SpeechRecognition.available({ langs: [recognitionLanguage], processLocally: true, quality: 'dictation' });
-            if (['downloadable', 'downloading'].includes(availability) && typeof SpeechRecognition.install === 'function') {
-              status.textContent = 'Microphone allowed. Preparing the on-device speech pack…';
-              const installed = await SpeechRecognition.install({ langs: [recognitionLanguage], quality: 'dictation' });
-              availability = installed ? 'available' : 'unavailable';
-            }
-            localSpeechReady = availability === 'available';
-          } catch { localSpeechReady = false; }
-        }
-        start.textContent = '🎙 Start recording';
-        start.onclick = startRecognition;
-        status.textContent = localSpeechReady ? 'Microphone is ready. Tap Start recording; speech will stay on this device.' : 'Microphone is ready. Tap Start recording. This browser may use an online speech service.';
-      } catch (error) {
-        const reasons = {
-          'NotAllowedError': 'Microphone access is blocked. In your browser, open the site controls beside the address, set Microphone to Allow, then reload Saathi.',
-          'PermissionDeniedError': 'Microphone access is blocked. Open this site’s browser settings, set Microphone to Allow, then reload Saathi.',
-          'NotFoundError': 'No microphone was found. Connect or enable a microphone, then try again.',
-          'NotReadableError': 'The microphone is busy or unavailable. Close other apps using it, then try again.',
-          'SecurityError': 'The browser blocked microphone access. Open Saathi using its HTTPS link or localhost.',
-          'InsecureContextError': error.message,
-          'MicrophoneUnavailableError': error.message
-        };
-        $('#dictationStatus').textContent = reasons[error.name] || `Could not access the microphone (${error.name || 'browser error'}). Check site permissions and try again.`;
-        start.textContent = '🎙 Try again';
-        start.onclick = prepareMicrophone;
-      }
-    };
-    start.onclick = prepareMicrophone;
-  }
-
-  // Pointer-responsive shop colors add a little life without moving the content.
-  window.addEventListener('pointermove', event => {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    document.documentElement.style.setProperty('--glow-x', `${Math.round(event.clientX / innerWidth * 100)}%`);
-    document.documentElement.style.setProperty('--glow-y', `${Math.round(event.clientY / innerHeight * 100)}%`);
-  }, { passive: true });
-  document.addEventListener('pointerdown', resetLockTimer, { passive: true });
-  document.addEventListener('keydown', resetLockTimer);
-  document.addEventListener('visibilitychange', () => { if (document.hidden && state && !demoMode) persist().then(lockApp); });
-  $$('.nav-item').forEach(button => button.onclick = () => showView(button.dataset.view));
-  $$('[data-go]').forEach(button => button.onclick = () => showView(button.dataset.go));
-  $('#saleAction').onclick = openSale;
-  $('#paymentAction').onclick = () => openPayment();
-  $('#newCreditButton').onclick = openManualCredit;
-  $('#addItemButton').onclick = () => openItemEditor();
-  $('#addFirstItem').onclick = () => openItemEditor();
-  $('#editProfile').onclick = openProfileEditor;
-  $('#profileButton').onclick = openProfileEditor;
-  $('#lockButton').onclick = () => { if (confirm('Lock Saathi now? Your latest changes are saved first.')) persist().then(lockApp); };
-  $('#themeButton').onclick = $('#themeSwitch').onclick = () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; if (!demoMode) localStorage.setItem(themeKey(edition), state.theme); setTheme(state.theme); persist(); };
-  $('#languageButton').onclick = $('#languageTopButton').onclick = () => { language = language === 'en' ? 'hi' : 'en'; state.language = language; applyLanguage(); persist(); };
-  $('#dictateButton').onclick = openDictation;
-  $('#reportMonth').onchange = renderReports;
-  $('#currencySelect').onchange = async event => {
-    const nextCurrency = event.target.value;
-    if (nextCurrency === state.currency) return;
-    if (state.entries.length && !confirm(`Change the shop currency symbol to ${nextCurrency}? Existing amounts will not be converted.`)) { event.target.value = state.currency || 'INR'; return; }
-    state.currency = nextCurrency; await persist(); renderAll(); toast(`Shop currency set to ${nextCurrency}.`);
-  };
-  $('#ledgerFilter').onchange = () => renderActivity($('#ledgerActivity'), ledgerEntries(), $('#emptyLedger'));
-  $('#csvButton').onclick = $('#settingsCsv').onclick = downloadCSV;
-  $('#backupButton').onclick = $('#settingsBackup').onclick = downloadBackup;
-  $('#restoreButton').onclick = () => $('#restoreFile').click();
-  $('#restoreFile').onchange = event => {
-    const file = event.target.files[0]; if (!file) return;
-    openDialog('Open encrypted backup', 'Enter the PIN used to create that backup. It will replace the shop book in this browser.', `${field('Backup PIN', 'unlockPinForRestore', { type: 'password', inputmode: 'numeric', maxlength: 12, placeholder: '8 or more digits' })}`, async () => {
-      const pin = $('#unlockPinForRestore').value;
-      try {
-        const backup = JSON.parse(await file.text()); validateBackupEnvelope(backup);
-        if (backup.edition !== edition) { toast(`This backup belongs to ${backup.edition === 'satyam' ? "Satyam Bhaiya's shop" : 'My Shop'}. Open that separate shop link to restore it.`); return false; }
-        if (!/^\d{8,12}$/.test(pin)) { toast('Enter the 8 to 12 digit backup PIN.'); return false; }
-        const key = await deriveKey(pin, asBytes(backup.vault.salt), backup.vault.iterations);
-        const restored = await openVault(backup.vault, key);
-        if (!restored || !Array.isArray(restored.entries) || !Array.isArray(restored.items)) throw new Error('invalid');
-        if (!confirm('Replace this browser’s current shop book with this backup? This cannot be undone.')) return false;
-        state = restored; cryptoKey = key; vault = backup.vault; edition = backup.edition;
-        localStorage.setItem(storeKey(edition), JSON.stringify(vault)); dialog.close(); startApp(); showView('home'); toast('Backup restored.');
-        return true;
-      } catch (error) { toast(error.name === 'OperationError' ? 'That PIN did not open this backup.' : 'This file is not a valid Saathi backup.'); return false; }
-    }, 'Restore');
-    event.target.value = '';
-  };
-  $('#changePinButton').onclick = changePin;
-  $('#installButton').onclick = installApp;
-  $('#closeDialog').onclick = () => dialog.close();
-  dialog.addEventListener('click', e => { const bounds = dialog.getBoundingClientRect(); if (e.clientX < bounds.left || e.clientX > bounds.right || e.clientY < bounds.top || e.clientY > bounds.bottom) dialog.close(); });
-  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredInstall = event; $('#installButton').textContent = 'Install'; });
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
-  if (demoMode) {
-    state = createDemoState();
-    startApp();
-    showView('home');
-  } else if (!window.crypto?.subtle || !window.isSecureContext) {
-    gateContent.innerHTML = gateHeader('Secure connection needed', 'Open Saathi from its secure hosted link or from localhost. Private records need your browser’s built-in encryption.');
-  } else {
-    try { renderGate(); }
-    catch (error) {
-      console.error('Saathi could not open its private setup.', error);
-      gateContent.innerHTML = gateHeader('Could not open Saathi', 'The private shop book could not be opened in this browser. Try reloading this page.');
-    }
-  }
-})();
+      if (!restored || !Array.isArray(restore

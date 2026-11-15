@@ -1,9 +1,9 @@
 {
-  "id": "./?edition=satyam&demo=1",
-  "name": "Saathi Showcase Demo — Satyam Bhaiya",
-  "short_name": "Saathi Demo",
-  "description": "A read-only showcase with fictional sample figures for Saathi.",
-  "start_url": "./?edition=satyam&demo=1",
+  "id": "./?edition=satyam&starter=1",
+  "name": "Saathi for Satyam Bhaiya",
+  "short_name": "Saathi",
+  "description": "A private shop book for Satyam Bhaiya's shop.",
+  "start_url": "./?edition=satyam&starter=1",
   "scope": "./",
   "display": "standalone",
   "display_override": ["standalone"],
@@ -14,3 +14,4 @@
     { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
 }
+
