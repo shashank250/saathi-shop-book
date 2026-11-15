@@ -28,7 +28,7 @@ jobs:
       - name: Prepare public site files
         run: |
           mkdir _site
-          cp index.html styles.css app.js manifest.json manifest-satyam.json manifest-satyam-book.json sw.js icon.svg _site/
+          cp index.html styles.css app.js app-v2.js manifest.json manifest-satyam.json manifest-satyam-book.json sw.js icon.svg _site/
           mkdir -p _site/satyam/demo _site/satyam/book _site/shop
           cp satyam/index.html _site/satyam/index.html
           cp satyam/demo/index.html _site/satyam/demo/index.html
@@ -42,3 +42,4 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
