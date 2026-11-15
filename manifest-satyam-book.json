@@ -1,9 +1,9 @@
 {
-  "id": "./?edition=satyam&starter=1",
+  "id": "./start-v2.html?edition=satyam&starter=1",
   "name": "Saathi for Satyam Bhaiya",
   "short_name": "Saathi",
   "description": "A private shop book for Satyam Bhaiya's shop.",
-  "start_url": "./?edition=satyam&starter=1",
+  "start_url": "./start-v2.html?edition=satyam&starter=1",
   "scope": "./",
   "display": "standalone",
   "display_override": ["standalone"],
@@ -14,4 +14,5 @@
     { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
 }
+
 
