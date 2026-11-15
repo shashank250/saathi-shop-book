@@ -1,0 +1,16 @@
+{
+  "id": "./?edition=community",
+  "name": "Saathi — Your shop, made simpler",
+  "short_name": "Saathi",
+  "description": "A private shop book for sales, stock and customer credit.",
+  "start_url": "./?edition=community",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone"],
+  "orientation": "portrait",
+  "background_color": "#f6f2e7",
+  "theme_color": "#f6f2e7",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

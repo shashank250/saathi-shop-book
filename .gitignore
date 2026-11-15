@@ -1,0 +1,10 @@
+work/
+outputs/
+tmp/
+node_modules/
+.env
+.env.*
+*.csv
+*.sqlite
+*.db
+saathi-*-encrypted-backup.json

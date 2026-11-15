@@ -1,0 +1,16 @@
+{
+  "id": "./?edition=satyam",
+  "name": "Saathi for Satyam Bhaiya",
+  "short_name": "Satyam's Saathi",
+  "description": "A private shop book for Satyam Bhaiya's shop.",
+  "start_url": "./?edition=satyam",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone"],
+  "orientation": "portrait",
+  "background_color": "#f6f2e7",
+  "theme_color": "#f6f2e7",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

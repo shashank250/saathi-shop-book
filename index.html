@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#f6f2e7">
+  <meta name="description" content="A simple, private, phone-first shop book for sales, stock and customer credit.">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Permissions-Policy" content="microphone=(self)">
+  <title>Saathi — Your shop, made simpler</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
+  <main id="unlockScreen" class="gate-screen">
+    <div class="gate-card">
+      <a class="brand" href="#" aria-label="Saathi home"><span class="brand-mark">✳</span><span><b>saathi</b><small>your shop, made simpler</small></span></a>
+      <div id="gateContent"></div>
+      <p class="gate-foot">🔒 Private by design · Your shop records stay in this browser</p>
+    </div>
+  </main>
+
+  <div id="app" class="app-shell hidden">
+    <header class="topbar">
+      <a class="brand compact" href="#home" aria-label="Saathi dashboard"><span class="brand-mark">✳</span><span><b>saathi</b><small id="shopLabel">My shop</small></span></a>
+      <div class="top-actions">
+        <button class="small-button language-top" id="languageTopButton" aria-label="Change language">हिन्दी</button>
+        <button class="icon-button" id="dictateButton" aria-label="Dictate an entry" title="Dictate an entry">🎙</button>
+        <button class="icon-button" id="themeButton" aria-label="Switch theme" title="Switch theme">◐</button>
+        <button class="icon-button" id="lockButton" aria-label="Lock app" title="Lock app">♙</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="view active" id="view-home">
+        <div class="welcome-row"><div><p class="eyebrow" id="todayLabel">TODAY</p><h1 id="greeting">Namaste, Satyam Bhaiya</h1><p class="muted" id="shopGreeting">A clear view of your shop, at a glance.</p></div><button class="avatar-button" id="profileButton" aria-label="Shop profile">SB</button></div>
+        <div id="setupNudge" class="setup-nudge hidden"><span class="nudge-icon">✦</span><div><b>Let's set up your shop</b><p>Add your first item with its buying and selling price. Saathi can then show your real profit.</p></div><button class="text-button" data-go="stock">Set up <span aria-hidden="true">›</span></button></div>
+        <div class="metrics">
+          <article class="metric-card metric-primary"><span class="metric-icon">↗</span><span class="metric-label">Sales today</span><strong id="todaySales">₹0</strong><small id="salesCount">No sales yet</small></article>
+          <article class="metric-card"><span class="metric-icon">◉</span><span class="metric-label">Gross profit</span><strong id="todayProfit">₹0</strong><small>Based on item costs you enter</small></article>
+          <article class="metric-card"><span class="metric-icon">▤</span><span class="metric-label">Money customers owe</span><strong id="totalDue">₹0</strong><small id="dueCount">No open balances</small></article>
+        </div>
+        <div class="section-title"><div><p class="eyebrow">QUICK ACTIONS</p><h2>What do you need?</h2></div></div>
+        <div class="actions-grid">
+          <button class="action-tile sale-tile" id="saleAction"><span class="action-icon">＋</span><span><b>Record a sale</b><small>Cash or customer credit</small></span><span class="chevron">›</span></button>
+          <button class="action-tile" id="paymentAction"><span class="action-icon payment-icon">₹</span><span><b>Record a payment</b><small>Customer paid back</small></span><span class="chevron">›</span></button>
+          <button class="action-tile" data-go="stock"><span class="action-icon stock-icon">▦</span><span><b>Check stock</b><small id="lowStockNote">See what is running low</small></span><span class="chevron">›</span></button>
+          <button class="action-tile" data-go="reports"><span class="action-icon report-icon">▥</span><span><b>Monthly report</b><small>Sales, cost and profit</small></span><span class="chevron">›</span></button>
+        </div>
+        <section class="panel today-panel"><div class="panel-head"><div><p class="eyebrow">SHOP PULSE</p><h2>Today so far</h2></div><span class="status-pill"><i></i> Saved in this browser</span></div><div id="homeActivity" class="activity-list"></div><div id="emptyActivity" class="empty-state"><span>☀</span><b>Your day starts here</b><p>Your sales and payments will appear here as you add them.</p></div></section>
+        <div class="privacy-strip"><span>🔒</span><span><b>Your shop book is private.</b> It is encrypted in this browser with your PIN. Another browser has its own copy.</span><button class="text-button" data-go="more">Details</button></div>
+      </section>
+
+      <section class="view" id="view-ledger">
+        <div class="page-heading"><p class="eyebrow">MONEY IN & OUT</p><h1>Credit book</h1><p class="muted">Know who owes you and what has been paid.</p></div>
+        <div class="summary-band"><span>Still to collect</span><b id="ledgerDue">₹0</b><small id="ledgerPeople">No open balances</small></div>
+        <div class="panel"><div class="panel-head"><div><p class="eyebrow">CUSTOMERS</p><h2>Open balances</h2></div><button class="small-button" id="newCreditButton">＋ Add credit</button></div><div id="customerList" class="customer-list"></div><div id="emptyCustomers" class="empty-state"><span>◎</span><b>No credit recorded</b><p>When a customer takes goods and will pay later, record it as credit.</p></div></div>
+        <div class="panel"><div class="panel-head"><div><p class="eyebrow">RECENT</p><h2>Shop entries</h2></div><select id="ledgerFilter" class="select-small" aria-label="Filter entries"><option value="all">Everything</option><option value="sale">Sales</option><option value="payment">Payments</option><option value="credit">Credit</option></select></div><div id="ledgerActivity" class="activity-list"></div><div id="emptyLedger" class="empty-state"><span>▤</span><b>Your entries will show here</b><p>Keep a simple record as you go.</p></div></div>
+      </section>
+
+      <section class="view" id="view-stock">
+        <div class="page-heading"><p class="eyebrow">ITEMS & INVENTORY</p><h1>Your stock</h1><p class="muted">Keep prices and quantities up to date.</p></div>
+        <div class="stock-banner"><span class="banner-symbol">✦</span><div><b id="stockSummary">Start with the items you sell most.</b><p>Enter what you pay and what you charge. Saathi estimates the profit for each sale.</p></div></div>
+        <div class="panel"><div class="panel-head"><div><p class="eyebrow">YOUR LIST</p><h2>Shop items <span id="itemCount" class="count-badge">0</span></h2></div><button class="small-button" id="addItemButton">＋ Add item</button></div><div id="itemList" class="item-list"></div><div id="emptyItems" class="empty-state"><span>▦</span><b>No items yet</b><p>Add the products Satyam Bhaiya sells to see sales and profit by item.</p><button class="button primary" id="addFirstItem">Add first item</button></div></div>
+        <p class="safe-note">Prices are only used for your shop book. Saathi does not send orders or change supplier prices.</p>
+      </section>
+
+      <section class="view" id="view-reports">
+        <div class="page-heading"><p class="eyebrow">A CLEARER MONTH END</p><h1>Reports</h1><p class="muted">A simple summary to help you plan your month.</p></div>
+        <div class="report-controls"><label for="reportMonth">Choose month</label><input type="month" id="reportMonth"></div>
+        <div class="report-grid"><article class="report-stat"><span>Sales</span><b id="reportSales">₹0</b><small>Recorded sales</small></article><article class="report-stat"><span>Estimated cost</span><b id="reportCost">₹0</b><small>From costs entered</small></article><article class="report-stat highlight"><span>Gross profit</span><b id="reportProfit">₹0</b><small>Before rent and other expenses</small></article><article class="report-stat"><span>Credit still due</span><b id="reportDue">₹0</b><small>As of today</small></article></div>
+        <div class="panel"><div class="panel-head"><div><p class="eyebrow">AT A GLANCE</p><h2>Sales by item</h2></div></div><div id="popularItems" class="bar-list"></div><div id="emptyPopular" class="empty-state"><span>▥</span><b>Your first sale will start the report</b><p>Reports use only the entries saved in this browser.</p></div></div>
+        <div class="panel export-panel"><div class="export-icon">⇩</div><div><h2>Take your records with you</h2><p>Download a spreadsheet for your monthly budget, or save an encrypted backup for another time.</p></div><div class="export-actions"><button class="button secondary" id="csvButton">Download monthly CSV</button><button class="button secondary" id="backupButton">Save encrypted backup</button></div></div>
+      </section>
+
+      <section class="view" id="view-more">
+        <div class="page-heading"><p class="eyebrow">YOUR SHOP, YOUR WAY</p><h1>More</h1><p class="muted">Settings, privacy and plans.</p></div>
+        <div class="panel settings-panel"><div class="panel-head"><div><p class="eyebrow">SHOP PROFILE</p><h2 id="profileTitle">Satyam Bhaiya's shop</h2></div><button class="small-button" id="editProfile">Edit</button></div><p class="muted small-copy" id="editionLabel">Personal shop setup</p></div>
+        <div class="panel settings-panel"><div class="panel-head"><div><p class="eyebrow">DISPLAY</p><h2>Easy on the eyes</h2></div></div><div class="setting-row"><div class="setting-symbol">◐</div><div><b>Dark mode</b><small>Use a softer screen in low light</small></div><button class="switch" id="themeSwitch" role="switch" aria-checked="false" aria-label="Dark mode"><span></span></button></div><div class="setting-row"><div class="setting-symbol">अ</div><div><b>Language</b><small>English or हिन्दी</small></div><button class="small-button" id="languageButton">हिन्दी</button></div><div class="setting-row"><div class="setting-symbol">¤</div><div><b>Shop currency</b><small>Changing this does not convert older amounts</small></div><select class="select-small" id="currencySelect" aria-label="Shop currency"><option value="INR">INR ₹</option><option value="USD">USD $</option><option value="EUR">EUR €</option><option value="GBP">GBP £</option><option value="AED">AED د.إ</option><option value="AUD">AUD A$</option><option value="CAD">CAD C$</option><option value="JPY">JPY ¥</option><option value="MXN">MXN $</option><option value="BRL">BRL R$</option><option value="ZAR">ZAR R</option></select></div><div class="setting-row"><div class="setting-symbol">↓</div><div><b>Install on this phone</b><small>Use Saathi like an app</small></div><button class="small-button" id="installButton">Install</button></div></div>
+        <div class="panel settings-panel"><div class="panel-head"><div><p class="eyebrow">YOUR RECORDS</p><h2>Private & portable</h2></div><span class="lock-badge">🔒 Encrypted</span></div><p class="small-copy">Records are encrypted in this browser with your PIN. They are not uploaded to Saathi. Each browser has its own copy. To move records, save a backup here, open the same shop link in the other browser, then restore the backup with the same PIN. New entries will not sync between browsers. Keep the backup file private.</p><div class="setting-actions"><button class="button secondary" id="settingsBackup">Save encrypted backup</button><button class="button secondary" id="restoreButton">Restore backup</button><button class="button secondary" id="changePinButton">Change PIN</button><button class="button secondary" id="settingsCsv">Download CSV</button></div><input id="restoreFile" class="hidden" type="file" accept="application/json,.json"></div>
+        <section class="plans-block"><div class="page-heading"><p class="eyebrow">GROW AS YOU GO</p><h2>Simple plans for small shops</h2><p class="muted">Start free. Pay only when an upgrade saves you time.</p></div><div class="plan-grid"><article class="plan-card"><span class="plan-label">START HERE</span><h3>Free</h3><div class="plan-price">₹0 <small>forever</small></div><p>For one shop owner learning what sells.</p><ul><li>Sales, stock and customer credit book</li><li>Works offline on one phone</li><li>Encrypted records and monthly export</li><li>No ads, no payment details collected</li></ul><span class="plan-status">Included now</span></article><article class="plan-card plan-featured"><span class="plan-label">WHEN YOU NEED SYNC</span><h3>Shop Plus</h3><div class="plan-price">₹149 <small>/ month (proposed)</small></div><p>For owners who need their records on a new phone too.</p><ul><li>Encrypted backup and sync across 2 phones</li><li>Automatic weekly backup reminders</li><li>Faster help setting up your shop</li><li>Cancel any time</li></ul><span class="plan-status future">Planned · not for sale</span></article><article class="plan-card"><span class="plan-label">FOR A BUSIER SHOP</span><h3>Shop Team</h3><div class="plan-price">₹399 <small>/ month (proposed)</small></div><p>For shops with staff, more items and more to track.</p><ul><li>Up to 4 staff PINs with activity history</li><li>More than one counter or outlet</li><li>Supplier and restock planning</li><li>Shareable monthly summaries</li></ul><span class="plan-status future">Planned · not for sale</span></article></div><p class="pricing-note">The paid features and prices are proposals. Saathi does not currently charge, sync to the cloud, or share your information.</p></section>
+        <div class="guardrail-card"><span>✦</span><div><b>Built to prevent costly mix-ups</b><p>Saathi checks stock before recording a sale, prevents collecting more than a customer's balance, and keeps old entries unchanged. Always check the amount before saving.</p></div></div>
+        <div class="about-row"><span>Saathi is an independent shop book, not a bank or tax advisor.</span></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Main navigation"><button class="nav-item active" data-view="home"><span>⌂</span><small>Home</small></button><button class="nav-item" data-view="ledger"><span>▤</span><small>Credit</small></button><button class="nav-item" data-view="stock"><span>▦</span><small>Stock</small></button><button class="nav-item" data-view="reports"><span>▥</span><small>Reports</small></button><button class="nav-item" data-view="more"><span>•••</span><small>More</small></button></nav>
+  </div>
+
+  <dialog id="dialog" class="app-dialog"><form method="dialog" id="dialogForm"><div class="dialog-top"><span class="dialog-mark">✳</span><button type="button" class="dialog-close" id="closeDialog" aria-label="Close">×</button></div><div id="dialogBody"></div><div class="dialog-actions" id="dialogActions"></div></form></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js" defer></script>
+</body>
+</html>
