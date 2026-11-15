@@ -3,7 +3,7 @@
   "name": "Saathi for Satyam Bhaiya",
   "short_name": "Satyam's Saathi",
   "description": "A private shop book for Satyam Bhaiya's shop.",
-  "start_url": "./?edition=satyam",
+  "start_url": "./start-v2.html?edition=satyam",
   "scope": "./",
   "display": "standalone",
   "display_override": ["standalone"],

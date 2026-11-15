@@ -3,7 +3,7 @@
   "name": "Saathi — Your shop, made simpler",
   "short_name": "Saathi",
   "description": "A private shop book for sales, stock and customer credit.",
-  "start_url": "./?edition=community",
+  "start_url": "./start-v2.html?edition=community",
   "scope": "./",
   "display": "standalone",
   "display_override": ["standalone"],
